@@ -537,7 +537,7 @@ export default function StockDetailPage() {
                 <CardDescription>Historical price data for {stock.symbol}</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="h-[300px] w-full">
+                <div className="h-[300px] sm:h-[600px] w-full">
                   {chartData.length > 0 ? (
                     <ChartContainer
                       config={{

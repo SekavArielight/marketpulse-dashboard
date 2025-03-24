@@ -268,7 +268,7 @@ export default function CryptoDetailPage() {
                 <CardDescription>Historical price data for {crypto.symbol.toUpperCase()}</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="h-[300px] w-full">
+                <div className="h-[300px] sm:h-[600px] w-full">
                   {chartData.length > 0 ? (
                     <ChartContainer
                       config={{
