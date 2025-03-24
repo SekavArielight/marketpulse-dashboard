@@ -12,7 +12,7 @@ export const metadata = {
   },
   images: [
     {
-      url: "https://drive.google.com/uc?export=download&id=1i7Wm4kzcfNJQU3T6bN_p355lqWxFSt0b",
+      url: "http://marketpulse-dashboard.vercel.app/og-image.png",
       alt: "MarketPulse Dashboard Preview",
     },
   ],
