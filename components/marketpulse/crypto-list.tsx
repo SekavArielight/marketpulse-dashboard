@@ -45,7 +45,7 @@ export default function CryptoList({ className }: CryptoListProps) {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [itemsPerPage, setItemsPerPage] = useState(5)
   const [paginatedCryptos, setPaginatedCryptos] = useState<Cryptocurrency[]>([])
   const [totalPages, setTotalPages] = useState(1)
 
@@ -332,7 +332,7 @@ export default function CryptoList({ className }: CryptoListProps) {
                     <ArrowUpDown className="ml-2 h-3 w-3" />
                   </Button>
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider hidden md:table-cell">
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -365,7 +365,7 @@ export default function CryptoList({ className }: CryptoListProps) {
                     <td className="px-4 py-4 whitespace-nowrap text-right">
                       <Skeleton className="h-5 w-16 ml-auto" />
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-right hidden md:table-cell">
+                    <td className="px-4 py-4 whitespace-nowrap text-right">
                       <Skeleton className="h-4 w-24 ml-auto" />
                     </td>
                   </tr>
@@ -416,7 +416,7 @@ export default function CryptoList({ className }: CryptoListProps) {
                         {crypto.price_change_percentage_24h.toFixed(2)}%
                       </div>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-right text-sm text-gray-500 dark:text-gray-400 hidden md:table-cell">
+                    <td className="px-4 py-4 whitespace-nowrap text-right text-sm text-gray-500 dark:text-gray-400">
                       {formatMarketCap(crypto.market_cap)}
                     </td>
                   </tr>
