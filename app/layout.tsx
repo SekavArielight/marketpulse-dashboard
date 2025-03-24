@@ -7,6 +7,17 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata = {
   title: "MarketPulse Dashboard",
   description: "Stay ahead of the market with MarketPulse. Track your cryptocurrencies and stocks in real-time, and make informed investment decisions.",
+  icons: {
+    icon: "./mpulse-bg-black.png"
+  },
+  images: [
+    {
+      url: "./mpulse-bg-black.png",
+      width: 1200,
+      height: 630,
+      alt: "MarketPulse Dashboard Preview",
+    },
+  ],
 }
 
 export default function RootLayout({
