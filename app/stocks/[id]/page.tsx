@@ -44,6 +44,57 @@ interface StockHistoricalData {
   volume: number
 }
 
+// Company name mapping for symbols
+const COMPANY_NAMES: Record<string, string> = {
+  aapl: "Apple Inc.",
+  msft: "Microsoft Corporation",
+  googl: "Alphabet Inc.",
+  amzn: "Amazon.com Inc.",
+  tsla: "Tesla, Inc.",
+  meta: "Meta Platforms, Inc.",
+  nvda: "NVIDIA Corporation",
+  jpm: "JPMorgan Chase & Co.",
+  v: "Visa Inc.",
+  wmt: "Walmart Inc.",
+  pg: "Procter & Gamble Co.",
+  jnj: "Johnson & Johnson",
+  unh: "UnitedHealth Group Inc.",
+  hd: "Home Depot Inc.",
+  ma: "Mastercard Inc.",
+  bac: "Bank of America Corp.",
+  pfe: "Pfizer Inc.",
+  csco: "Cisco Systems, Inc.",
+  adbe: "Adobe Inc.",
+  crm: "Salesforce, Inc.",
+}
+
+// Sector mapping for symbols
+const SECTOR_MAPPING: Record<string, string> = {
+  aapl: "Technology",
+  msft: "Technology",
+  googl: "Technology",
+  amzn: "Consumer Cyclical",
+  tsla: "Automotive",
+  meta: "Technology",
+  nvda: "Technology",
+  jpm: "Financial Services",
+  v: "Financial Services",
+  wmt: "Consumer Defensive",
+  pg: "Consumer Defensive",
+  jnj: "Healthcare",
+  unh: "Healthcare",
+  hd: "Consumer Cyclical",
+  ma: "Financial Services",
+  bac: "Financial Services",
+  pfe: "Healthcare",
+  csco: "Technology",
+  adbe: "Technology",
+  crm: "Technology",
+}
+
+// Alpha Vantage API key
+const ALPHA_VANTAGE_API_KEY = "PILT557MDETIAVVK"
+
 export default function StockDetailPage() {
   const params = useParams()
   const stockSymbol = params.id as string
@@ -54,29 +105,94 @@ export default function StockDetailPage() {
   const [timeRange, setTimeRange] = useState("1year")
   const [isRefreshing, setIsRefreshing] = useState(false)
 
-  // Update the fetchStockData function to handle the 401 error better and use fallback data
+  // Update the fetchStockData function to use Alpha Vantage API
   const fetchStockData = async () => {
     try {
       setError(null)
       setIsLoading(true)
 
-      // Try to fetch from API, but expect it might fail with 401
+      // Try to fetch company overview from Alpha Vantage
       try {
-        const profileResponse = await fetch(
-          `https://financialmodelingprep.com/api/v3/profile/${stockSymbol.toUpperCase()}?apikey=demo`,
+        // First, get the current quote
+        const quoteResponse = await fetch(
+          `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${stockSymbol.toUpperCase()}&apikey=${ALPHA_VANTAGE_API_KEY}`,
         )
 
-        if (!profileResponse.ok) {
-          throw new Error(`API error: ${profileResponse.status}`)
+        if (!quoteResponse.ok) {
+          throw new Error(`API error: ${quoteResponse.status}`)
         }
 
-        const profileData = await profileResponse.json()
+        const quoteData = await quoteResponse.json()
 
-        if (profileData.length === 0) {
-          throw new Error("Stock not found")
+        // Check if we got a valid response
+        if (!quoteData["Global Quote"] || Object.keys(quoteData["Global Quote"]).length === 0) {
+          throw new Error("Stock not found or API limit reached")
         }
 
-        setStock(profileData[0])
+        const quote = quoteData["Global Quote"]
+
+        // Then, get the company overview
+        const overviewResponse = await fetch(
+          `https://www.alphavantage.co/query?function=OVERVIEW&symbol=${stockSymbol.toUpperCase()}&apikey=${ALPHA_VANTAGE_API_KEY}`,
+        )
+
+        if (!overviewResponse.ok) {
+          throw new Error(`API error: ${overviewResponse.status}`)
+        }
+
+        const overviewData = await overviewResponse.json()
+
+        // Check if we got a valid response
+        if (!overviewData.Symbol) {
+          // We might have hit the API limit, use fallback data with the quote we already have
+          const stockProfile: StockProfile = {
+            symbol: stockSymbol.toUpperCase(),
+            name: COMPANY_NAMES[stockSymbol.toLowerCase()] || `${stockSymbol.toUpperCase()} Inc.`,
+            price: Number.parseFloat(quote["05. price"]),
+            changes: Number.parseFloat(quote["09. change"]),
+            changesPercentage: Number.parseFloat(quote["10. change percent"].replace("%", "")),
+            marketCap: 0, // We don't have this from the quote
+            volume: Number.parseInt(quote["06. volume"]),
+            sector: SECTOR_MAPPING[stockSymbol.toLowerCase()] || "Technology",
+            description: `This is a sample description for ${COMPANY_NAMES[stockSymbol.toLowerCase()] || stockSymbol.toUpperCase()}. In a production environment, this would be actual company data from the API.`,
+            exchange: "NASDAQ",
+            industry: SECTOR_MAPPING[stockSymbol.toLowerCase()] || "Technology",
+            ceo: "N/A",
+            website: "https://example.com",
+            employees: 0,
+            beta: 1.0,
+            volAvg: Number.parseInt(quote["06. volume"]),
+            lastDiv: 0,
+            range: "N/A",
+          }
+
+          setStock(stockProfile)
+          setError("Limited API data available. Using partial real data with some sample data.")
+        } else {
+          // We have both quote and overview data
+          const stockProfile: StockProfile = {
+            symbol: overviewData.Symbol,
+            name: overviewData.Name,
+            price: Number.parseFloat(quote["05. price"]),
+            changes: Number.parseFloat(quote["09. change"]),
+            changesPercentage: Number.parseFloat(quote["10. change percent"].replace("%", "")),
+            marketCap: Number.parseFloat(overviewData.MarketCapitalization) || 0,
+            volume: Number.parseInt(quote["06. volume"]),
+            sector: overviewData.Sector || SECTOR_MAPPING[stockSymbol.toLowerCase()] || "N/A",
+            description: overviewData.Description || `No description available for ${overviewData.Name}.`,
+            exchange: overviewData.Exchange || "N/A",
+            industry: overviewData.Industry || "N/A",
+            ceo: overviewData.CEO || "N/A",
+            website: overviewData.Website || "N/A",
+            employees: Number.parseInt(overviewData.FullTimeEmployees) || 0,
+            beta: Number.parseFloat(overviewData.Beta) || 1.0,
+            volAvg: Number.parseInt(overviewData.VolumeAvg) || Number.parseInt(quote["06. volume"]),
+            lastDiv: Number.parseFloat(overviewData.DividendYield) || 0,
+            range: overviewData["52WeekRange"] || "N/A",
+          }
+
+          setStock(stockProfile)
+        }
 
         // Fetch historical data
         await fetchHistoricalData(timeRange)
@@ -89,100 +205,12 @@ export default function StockDetailPage() {
         // Continue to fallback data
       }
 
-      // Generate realistic fallback data for the specific stock
+      // Generate fallback data if API fails
       console.log("Using fallback stock data due to API limitations")
       setError("API access limited. Using sample data for demonstration purposes.")
 
-      // Create a map of sample stocks for common symbols
-      const stockProfiles: Record<string, StockProfile> = {
-        aapl: {
-          symbol: "AAPL",
-          name: "Apple Inc.",
-          price: 187.32,
-          changes: 1.25,
-          changesPercentage: 0.67,
-          marketCap: 2950000000000,
-          volume: 58900000,
-          sector: "Technology",
-          description:
-            "Apple Inc. designs, manufactures, and markets smartphones, personal computers, tablets, wearables, and accessories worldwide. The company offers iPhone, Mac, iPad, and wearables, home, and accessories.",
-          exchange: "NASDAQ",
-          industry: "Consumer Electronics",
-          ceo: "Tim Cook",
-          website: "https://www.apple.com",
-          employees: 164000,
-          beta: 1.31,
-          volAvg: 54700000,
-          lastDiv: 0.96,
-          range: "143.90 - 199.62",
-        },
-        msft: {
-          symbol: "MSFT",
-          name: "Microsoft Corporation",
-          price: 418.56,
-          changes: -2.34,
-          changesPercentage: -0.56,
-          marketCap: 3110000000000,
-          volume: 21500000,
-          sector: "Technology",
-          description:
-            "Microsoft Corporation develops, licenses, and supports software, services, devices, and solutions worldwide. The company operates in three segments: Productivity and Business Processes, Intelligent Cloud, and More Personal Computing.",
-          exchange: "NASDAQ",
-          industry: "Software—Infrastructure",
-          ceo: "Satya Nadella",
-          website: "https://www.microsoft.com",
-          employees: 221000,
-          beta: 0.92,
-          volAvg: 22300000,
-          lastDiv: 3.0,
-          range: "309.98 - 430.82",
-        },
-        googl: {
-          symbol: "GOOGL",
-          name: "Alphabet Inc.",
-          price: 175.98,
-          changes: 3.45,
-          changesPercentage: 2.0,
-          marketCap: 2210000000000,
-          volume: 25600000,
-          sector: "Technology",
-          description:
-            "Alphabet Inc. offers various products and platforms in the United States, Europe, the Middle East, Africa, the Asia-Pacific, Canada, and Latin America. It operates through Google Services, Google Cloud, and Other Bets segments.",
-          exchange: "NASDAQ",
-          industry: "Internet Content & Information",
-          ceo: "Sundar Pichai",
-          website: "https://abc.xyz",
-          employees: 182000,
-          beta: 1.05,
-          volAvg: 28500000,
-          lastDiv: 0,
-          range: "120.21 - 178.77",
-        },
-      }
-
-      // Get the specific stock or create a generic one
-      const fallbackStock = stockProfiles[stockSymbol.toLowerCase()] || {
-        symbol: stockSymbol.toUpperCase(),
-        name: `${stockSymbol.toUpperCase()} Inc.`,
-        price: 150 + Math.random() * 300,
-        changes: Math.random() * 10 - 5,
-        changesPercentage: Math.random() * 5 - 2.5,
-        marketCap: Math.random() * 1000000000000,
-        volume: Math.random() * 50000000,
-        sector: "Technology",
-        description:
-          "This is a sample description for demonstration purposes. In a production environment, this would be actual company data from the API.",
-        exchange: "NASDAQ",
-        industry: "Technology",
-        ceo: "John Doe",
-        website: "https://example.com",
-        employees: Math.floor(Math.random() * 100000),
-        beta: 1 + Math.random(),
-        volAvg: Math.random() * 20000000,
-        lastDiv: Math.random() * 5,
-        range: `${(100 + Math.random() * 50).toFixed(2)} - ${(200 + Math.random() * 100).toFixed(2)}`,
-      }
-
+      // Create a fallback stock profile
+      const fallbackStock = createFallbackStockProfile(stockSymbol)
       setStock(fallbackStock)
 
       // Generate fallback chart data
@@ -201,29 +229,8 @@ export default function StockDetailPage() {
         return
       }
 
-      // Create a generic fallback stock
-      const fallbackStock: StockProfile = {
-        symbol: stockSymbol.toUpperCase(),
-        name: `${stockSymbol.toUpperCase()} Inc.`,
-        price: 150 + Math.random() * 300,
-        changes: Math.random() * 10 - 5,
-        changesPercentage: Math.random() * 5 - 2.5,
-        marketCap: Math.random() * 1000000000000,
-        volume: Math.random() * 50000000,
-        sector: "Technology",
-        description:
-          "This is a sample description for demonstration purposes. In a production environment, this would be actual company data from the API.",
-        exchange: "NASDAQ",
-        industry: "Technology",
-        ceo: "John Doe",
-        website: "https://example.com",
-        employees: Math.floor(Math.random() * 100000),
-        beta: 1 + Math.random(),
-        volAvg: Math.random() * 20000000,
-        lastDiv: Math.random() * 5,
-        range: `${(100 + Math.random() * 50).toFixed(2)} - ${(200 + Math.random() * 100).toFixed(2)}`,
-      }
-
+      // Create a fallback stock profile
+      const fallbackStock = createFallbackStockProfile(stockSymbol)
       setStock(fallbackStock)
 
       // Generate fallback chart data
@@ -235,34 +242,45 @@ export default function StockDetailPage() {
     }
   }
 
-  // Update the fetchHistoricalData function to always use fallback data
+  // Helper function to create a fallback stock profile
+  const createFallbackStockProfile = (symbol: string): StockProfile => {
+    const upperSymbol = symbol.toUpperCase()
+    const lowerSymbol = symbol.toLowerCase()
+
+    return {
+      symbol: upperSymbol,
+      name: COMPANY_NAMES[lowerSymbol] || `${upperSymbol} Inc.`,
+      price: 150 + Math.random() * 300,
+      changes: (Math.random() - 0.5) * 10,
+      changesPercentage: (Math.random() - 0.5) * 5,
+      marketCap: Math.random() * 1000000000000,
+      volume: Math.random() * 50000000,
+      sector: SECTOR_MAPPING[lowerSymbol] || "Technology",
+      description: `This is a sample description for ${COMPANY_NAMES[lowerSymbol] || upperSymbol}. In a production environment, this would be actual company data from the API.`,
+      exchange: "NASDAQ",
+      industry: SECTOR_MAPPING[lowerSymbol] || "Technology",
+      ceo: "John Doe",
+      website: "https://example.com",
+      employees: Math.floor(Math.random() * 100000),
+      beta: 1 + Math.random(),
+      volAvg: Math.random() * 20000000,
+      lastDiv: Math.random() * 5,
+      range: `${(100 + Math.random() * 50).toFixed(2)} - ${(200 + Math.random() * 100).toFixed(2)}`,
+    }
+  }
+
+  // Update the fetchHistoricalData function to use Alpha Vantage API
   const fetchHistoricalData = async (period: string) => {
     try {
-      let endpoint
-
-      switch (period) {
-        case "1month":
-          endpoint = "historical-price-full/1month"
-          break
-        case "3months":
-          endpoint = "historical-price-full/3month"
-          break
-        case "6months":
-          endpoint = "historical-price-full/6month"
-          break
-        case "1year":
-        default:
-          endpoint = "historical-price-full/1year"
-          break
-        case "5years":
-          endpoint = "historical-price-full/5year"
-          break
+      // Map our time range to Alpha Vantage's outputsize parameter
+      let outputsize = "compact" // Default to 100 data points
+      if (period === "1year" || period === "5years") {
+        outputsize = "full" // Get full data (up to 20 years)
       }
 
-      // Try to fetch from API, but expect it might fail with 401
       try {
         const response = await fetch(
-          `https://financialmodelingprep.com/api/v3/${endpoint}/${stockSymbol.toUpperCase()}?apikey=demo`,
+          `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${stockSymbol.toUpperCase()}&outputsize=${outputsize}&apikey=${ALPHA_VANTAGE_API_KEY}`,
         )
 
         if (!response.ok) {
@@ -271,17 +289,22 @@ export default function StockDetailPage() {
 
         const data = await response.json()
 
-        if (!data.historical || data.historical.length === 0) {
-          throw new Error("No historical data available")
+        // Check if we got a valid response
+        if (!data["Time Series (Daily)"] || Object.keys(data["Time Series (Daily)"]).length === 0) {
+          throw new Error("No historical data available or API limit reached")
         }
 
         // Transform the data for the chart
-        const formattedData = data.historical
-          .map((item: StockHistoricalData) => ({
-            date: item.date,
-            price: item.close,
-          }))
-          .reverse()
+        const timeSeriesData = data["Time Series (Daily)"]
+        const dates = Object.keys(timeSeriesData).sort() // Sort dates in ascending order
+
+        // Filter dates based on the selected time range
+        const filteredDates = filterDatesByTimeRange(dates, period)
+
+        const formattedData = filteredDates.map((date) => ({
+          date,
+          price: Number.parseFloat(timeSeriesData[date]["4. close"]),
+        }))
 
         setChartData(formattedData)
         return // Exit early if successful
@@ -300,6 +323,34 @@ export default function StockDetailPage() {
       const fallbackData = generateFallbackChartData(period)
       setChartData(fallbackData)
     }
+  }
+
+  // Helper function to filter dates based on time range
+  const filterDatesByTimeRange = (dates: string[], period: string): string[] => {
+    const today = new Date()
+    const cutoffDate = new Date()
+
+    switch (period) {
+      case "1month":
+        cutoffDate.setMonth(today.getMonth() - 1)
+        break
+      case "3months":
+        cutoffDate.setMonth(today.getMonth() - 3)
+        break
+      case "6months":
+        cutoffDate.setMonth(today.getMonth() - 6)
+        break
+      case "1year":
+        cutoffDate.setFullYear(today.getFullYear() - 1)
+        break
+      case "5years":
+        cutoffDate.setFullYear(today.getFullYear() - 5)
+        break
+      default:
+        cutoffDate.setFullYear(today.getFullYear() - 1) // Default to 1 year
+    }
+
+    return dates.filter((date) => new Date(date) >= cutoffDate)
   }
 
   const generateFallbackChartData = (period: string) => {
@@ -408,8 +459,8 @@ export default function StockDetailPage() {
         </div>
 
         {error && (
-          <Alert variant="warning" className="mb-6">
-            <AlertTitle>Using Sample Data</AlertTitle>
+          <Alert variant="warning">
+            <AlertTitle>Note</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
@@ -567,7 +618,7 @@ export default function StockDetailPage() {
                     </div>
                     <div className="flex justify-between">
                       <dt className="text-muted-foreground">Employees</dt>
-                      <dd className="font-medium">{stock.employees.toLocaleString()}</dd>
+                      <dd className="font-medium">{stock.employees > 0 ? stock.employees.toLocaleString() : "N/A"}</dd>
                     </div>
                   </dl>
                 </CardContent>
@@ -613,7 +664,7 @@ export default function StockDetailPage() {
                   <p className="text-sm text-muted-foreground line-clamp-[7]">
                     {stock.description || "No description available."}
                   </p>
-                  {stock.website && (
+                  {stock.website && stock.website !== "N/A" && (
                     <a
                       href={stock.website}
                       target="_blank"

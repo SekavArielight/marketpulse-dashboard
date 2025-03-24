@@ -93,7 +93,7 @@ export default function Sidebar() {
                   Overview
                 </div>
                 <div className="space-y-1">
-                  <NavItem href="#" icon={Home}>
+                  <NavItem href="/" icon={Home}>
                     Dashboard
                   </NavItem>
                   <NavItem href="/crypto" icon={BitcoinIcon}>

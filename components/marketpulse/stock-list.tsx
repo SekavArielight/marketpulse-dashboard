@@ -26,7 +26,7 @@ interface Stock {
   price: number
   change: number
   changePercent: number
-  marketCap: number
+  marketCap: number | null
   volume: number
   sector: string
   logo: string
@@ -56,9 +56,60 @@ const STOCK_SYMBOLS = [
   "CRM",
 ]
 
+// Company name mapping for symbols
+const COMPANY_NAMES: Record<string, string> = {
+  AAPL: "Apple Inc.",
+  MSFT: "Microsoft Corporation",
+  GOOGL: "Alphabet Inc.",
+  AMZN: "Amazon.com Inc.",
+  TSLA: "Tesla, Inc.",
+  META: "Meta Platforms, Inc.",
+  NVDA: "NVIDIA Corporation",
+  JPM: "JPMorgan Chase & Co.",
+  V: "Visa Inc.",
+  WMT: "Walmart Inc.",
+  PG: "Procter & Gamble Co.",
+  JNJ: "Johnson & Johnson",
+  UNH: "UnitedHealth Group Inc.",
+  HD: "Home Depot Inc.",
+  MA: "Mastercard Inc.",
+  BAC: "Bank of America Corp.",
+  PFE: "Pfizer Inc.",
+  CSCO: "Cisco Systems, Inc.",
+  ADBE: "Adobe Inc.",
+  CRM: "Salesforce, Inc.",
+}
+
+// Sector mapping for symbols
+const SECTOR_MAPPING: Record<string, string> = {
+  AAPL: "Technology",
+  MSFT: "Technology",
+  GOOGL: "Technology",
+  AMZN: "Consumer Cyclical",
+  TSLA: "Automotive",
+  META: "Technology",
+  NVDA: "Technology",
+  JPM: "Financial Services",
+  V: "Financial Services",
+  WMT: "Consumer Defensive",
+  PG: "Consumer Defensive",
+  JNJ: "Healthcare",
+  UNH: "Healthcare",
+  HD: "Consumer Cyclical",
+  MA: "Financial Services",
+  BAC: "Financial Services",
+  PFE: "Healthcare",
+  CSCO: "Technology",
+  ADBE: "Technology",
+  CRM: "Technology",
+}
+
 interface StockListProps {
   className?: string
 }
+
+// Alpha Vantage API key
+const ALPHA_VANTAGE_API_KEY = "PILT557MDETIAVVK"
 
 export default function StockList({ className }: StockListProps) {
   const [searchTerm, setSearchTerm] = useState("")
@@ -81,187 +132,94 @@ export default function StockList({ className }: StockListProps) {
       setError(null)
       setIsLoading(true)
 
-      // Try to fetch from API, but expect it might fail with 401
-      try {
-        const response = await fetch(
-          `https://financialmodelingprep.com/api/v3/quote/${STOCK_SYMBOLS.join(",")}?apikey=demo`,
-        )
+      // Alpha Vantage has a limit of 5 API calls per minute on the free tier
+      // We'll fetch data for the first 5 stocks and use fallback data for the rest
+      const stocksToFetch = STOCK_SYMBOLS.slice(0, 5)
+      const stockPromises = stocksToFetch.map(async (symbol) => {
+        try {
+          const response = await fetch(
+            `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${ALPHA_VANTAGE_API_KEY}`,
+          )
 
-        if (!response.ok) {
-          throw new Error(`API error: ${response.status}`)
+          if (!response.ok) {
+            throw new Error(`API error: ${response.status}`)
+          }
+
+          const data = await response.json()
+
+          // Check if we got a valid response
+          if (data["Global Quote"] && Object.keys(data["Global Quote"]).length > 0) {
+            const quote = data["Global Quote"]
+            return {
+              symbol: symbol,
+              name: COMPANY_NAMES[symbol] || `${symbol} Inc.`,
+              price: Number.parseFloat(quote["05. price"]),
+              change: Number.parseFloat(quote["09. change"]),
+              changePercent: Number.parseFloat(quote["10. change percent"].replace("%", "")),
+              marketCap: null, // Alpha Vantage doesn't provide market cap in this endpoint
+              volume: Number.parseInt(quote["06. volume"]),
+              sector: SECTOR_MAPPING[symbol] || "N/A",
+              logo: `/placeholder.svg?height=32&width=32&text=${symbol}`,
+            }
+          } else {
+            throw new Error("Invalid response format")
+          }
+        } catch (error) {
+          console.error(`Error fetching data for ${symbol}:`, error)
+          // Return fallback data for this symbol
+          return createFallbackStock(symbol)
         }
+      })
 
-        const data = await response.json()
+      // Wait for all promises to resolve
+      const fetchedStocks = await Promise.all(stockPromises)
 
-        // Transform the data to match our Stock interface
-        const transformedData: Stock[] = data.map((item: any) => ({
-          symbol: item.symbol,
-          name: item.name,
-          price: item.price,
-          change: item.change,
-          changePercent: item.changesPercentage,
-          marketCap: item.marketCap,
-          volume: item.volume,
-          sector: item.sector || "N/A",
-          logo: `/placeholder.svg?height=32&width=32&text=${item.symbol}`,
-        }))
+      // Create fallback data for the remaining stocks
+      const remainingStocks = STOCK_SYMBOLS.slice(5).map((symbol) => createFallbackStock(symbol))
 
-        setStocks(transformedData)
-        setIsLoading(false)
-        setIsRefreshing(false)
-        return // Exit early if successful
-      } catch (apiError) {
-        console.error("API request failed:", apiError)
-        // Continue to fallback data
+      // Combine fetched and fallback stocks
+      const allStocks = [...fetchedStocks, ...remainingStocks]
+
+      setStocks(allStocks)
+
+      if (fetchedStocks.length < stocksToFetch.length) {
+        setError("Some stock data could not be fetched. Using partial sample data.")
+      } else if (remainingStocks.length > 0) {
+        setError("API rate limit reached. Using sample data for some stocks.")
       }
 
-      // Generate realistic fallback data
-      console.log("Using fallback stock data due to API limitations")
-      setError("API access limited. Using sample data for demonstration purposes.")
-
-      const fallbackData: Stock[] = [
-        {
-          symbol: "AAPL",
-          name: "Apple Inc.",
-          price: 187.32,
-          change: 1.25,
-          changePercent: 0.67,
-          marketCap: 2950000000000,
-          volume: 58900000,
-          sector: "Technology",
-          logo: "/placeholder.svg?height=32&width=32&text=AAPL",
-        },
-        {
-          symbol: "MSFT",
-          name: "Microsoft Corporation",
-          price: 418.56,
-          change: -2.34,
-          changePercent: -0.56,
-          marketCap: 3110000000000,
-          volume: 21500000,
-          sector: "Technology",
-          logo: "/placeholder.svg?height=32&width=32&text=MSFT",
-        },
-        {
-          symbol: "GOOGL",
-          name: "Alphabet Inc.",
-          price: 175.98,
-          change: 3.45,
-          changePercent: 2.0,
-          marketCap: 2210000000000,
-          volume: 25600000,
-          sector: "Technology",
-          logo: "/placeholder.svg?height=32&width=32&text=GOOGL",
-        },
-        {
-          symbol: "AMZN",
-          name: "Amazon.com Inc.",
-          price: 178.75,
-          change: -1.23,
-          changePercent: -0.68,
-          marketCap: 1850000000000,
-          volume: 32100000,
-          sector: "Consumer Cyclical",
-          logo: "/placeholder.svg?height=32&width=32&text=AMZN",
-        },
-        {
-          symbol: "TSLA",
-          name: "Tesla, Inc.",
-          price: 175.34,
-          change: 5.67,
-          changePercent: 3.34,
-          marketCap: 557000000000,
-          volume: 98700000,
-          sector: "Automotive",
-          logo: "/placeholder.svg?height=32&width=32&text=TSLA",
-        },
-        {
-          symbol: "NVDA",
-          name: "NVIDIA Corporation",
-          price: 950.02,
-          change: 23.45,
-          changePercent: 2.53,
-          marketCap: 2340000000000,
-          volume: 45600000,
-          sector: "Technology",
-          logo: "/placeholder.svg?height=32&width=32&text=NVDA",
-        },
-        {
-          symbol: "META",
-          name: "Meta Platforms, Inc.",
-          price: 487.95,
-          change: -5.67,
-          changePercent: -1.15,
-          marketCap: 1250000000000,
-          volume: 18900000,
-          sector: "Technology",
-          logo: "/placeholder.svg?height=32&width=32&text=META",
-        },
-        {
-          symbol: "JPM",
-          name: "JPMorgan Chase & Co.",
-          price: 198.45,
-          change: 1.23,
-          changePercent: 0.62,
-          marketCap: 573000000000,
-          volume: 8900000,
-          sector: "Financial Services",
-          logo: "/placeholder.svg?height=32&width=32&text=JPM",
-        },
-        {
-          symbol: "V",
-          name: "Visa Inc.",
-          price: 275.67,
-          change: -0.89,
-          changePercent: -0.32,
-          marketCap: 560000000000,
-          volume: 6700000,
-          sector: "Financial Services",
-          logo: "/placeholder.svg?height=32&width=32&text=V",
-        },
-        {
-          symbol: "WMT",
-          name: "Walmart Inc.",
-          price: 67.89,
-          change: 0.45,
-          changePercent: 0.67,
-          marketCap: 545000000000,
-          volume: 7800000,
-          sector: "Consumer Defensive",
-          logo: "/placeholder.svg?height=32&width=32&text=WMT",
-        },
-        {
-          symbol: "PG",
-          name: "Procter & Gamble Co.",
-          price: 165.78,
-          change: 1.12,
-          changePercent: 0.68,
-          marketCap: 390000000000,
-          volume: 5600000,
-          sector: "Consumer Defensive",
-          logo: "/placeholder.svg?height=32&width=32&text=PG",
-        },
-        {
-          symbol: "JNJ",
-          name: "Johnson & Johnson",
-          price: 152.5,
-          change: -0.75,
-          changePercent: -0.49,
-          marketCap: 367000000000,
-          volume: 6200000,
-          sector: "Healthcare",
-          logo: "/placeholder.svg?height=32&width=32&text=JNJ",
-        },
-      ]
-
-      setStocks(fallbackData)
       setIsLoading(false)
       setIsRefreshing(false)
     } catch (err) {
       console.error("Error in fetchStockData:", err)
       setError(err instanceof Error ? err.message : "Failed to fetch stock data")
+
+      // Use fallback data for all stocks
+      const fallbackStocks = STOCK_SYMBOLS.map((symbol) => createFallbackStock(symbol))
+      setStocks(fallbackStocks)
+
       setIsLoading(false)
       setIsRefreshing(false)
+    }
+  }
+
+  // Helper function to create fallback stock data
+  const createFallbackStock = (symbol: string): Stock => {
+    // Generate realistic but random data based on the symbol
+    const basePrice = symbol.length * 10 + Math.random() * 100
+    const change = (Math.random() - 0.5) * 5
+    const changePercent = (change / basePrice) * 100
+
+    return {
+      symbol,
+      name: COMPANY_NAMES[symbol] || `${symbol} Inc.`,
+      price: basePrice,
+      change,
+      changePercent,
+      marketCap: Math.random() * 1000000000000,
+      volume: Math.floor(Math.random() * 10000000),
+      sector: SECTOR_MAPPING[symbol] || "Technology",
+      logo: `/placeholder.svg?height=32&width=32&text=${symbol}`,
     }
   }
 
@@ -292,10 +250,18 @@ export default function StockList({ className }: StockListProps) {
     // Sort if sortConfig is set
     if (sortConfig) {
       result.sort((a, b) => {
-        if (a[sortConfig.key] < b[sortConfig.key]) {
+        const aValue = a[sortConfig.key]
+        const bValue = b[sortConfig.key]
+
+        // Handle null values
+        if (aValue === null && bValue === null) return 0
+        if (aValue === null) return sortConfig.direction === "ascending" ? -1 : 1
+        if (bValue === null) return sortConfig.direction === "ascending" ? 1 : -1
+
+        if (aValue < bValue) {
           return sortConfig.direction === "ascending" ? -1 : 1
         }
-        if (a[sortConfig.key] > b[sortConfig.key]) {
+        if (aValue > bValue) {
           return sortConfig.direction === "ascending" ? 1 : -1
         }
         return 0
@@ -344,7 +310,8 @@ export default function StockList({ className }: StockListProps) {
     }).format(num)
   }
 
-  const formatMarketCap = (num: number) => {
+  const formatMarketCap = (num: number | null) => {
+    if (num === null) return "N/A"
     if (num >= 1e12) return `$${(num / 1e12).toFixed(2)}T`
     if (num >= 1e9) return `$${(num / 1e9).toFixed(2)}B`
     if (num >= 1e6) return `$${(num / 1e6).toFixed(2)}M`
@@ -481,7 +448,7 @@ export default function StockList({ className }: StockListProps) {
 
         {error && (
           <Alert variant="warning" className="mb-6">
-            <AlertTitle>Using Sample Data</AlertTitle>
+            <AlertTitle>Note</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
