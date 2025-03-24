@@ -96,10 +96,10 @@ export default function Sidebar() {
                   <NavItem href="#" icon={Home}>
                     Dashboard
                   </NavItem>
-                  <NavItem href="#" icon={BitcoinIcon}>
+                  <NavItem href="/crypto" icon={BitcoinIcon}>
                     Crytpo
                   </NavItem>
-                  <NavItem href="#" icon={Activity}>
+                  <NavItem href="/stocks" icon={Activity}>
                     Stocks
                   </NavItem>
                   <NavItem href="#" icon={Briefcase}>
