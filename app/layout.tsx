@@ -12,9 +12,7 @@ export const metadata = {
   },
   images: [
     {
-      url: "./mpulse-bg-black.png",
-      width: 1200,
-      height: 630,
+      url: "https://drive.google.com/uc?export=download&id=1i7Wm4kzcfNJQU3T6bN_p355lqWxFSt0b",
       alt: "MarketPulse Dashboard Preview",
     },
   ],
