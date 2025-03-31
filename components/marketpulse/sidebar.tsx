@@ -118,12 +118,13 @@ export default function Sidebar() {
 
           <div className="px-4 py-4 border-t border-gray-200 dark:border-[#1F1F23]">
             <div className="space-y-1">
-              <NavItem href="#" icon={Settings}>
+              {/* <NavItem href="#" icon={Settings}>
                 Settings
               </NavItem>
               <NavItem href="#" icon={HelpCircle}>
                 Help
-              </NavItem>
+              </NavItem> */}
+              <a href="http://sekav.netlify.app" target="_blank" rel="noopener noreferrer">Built by Sekav</a>
             </div>
           </div>
         </div>
